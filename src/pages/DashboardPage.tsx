@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "@/components/common/Card";
 import { CalorieRingChart } from "@/components/dashboard/CalorieRingChart";
+import { NutrientBreakdownPanel } from "@/components/dashboard/NutrientBreakdownPanel";
 import { NutrientProgressBar } from "@/components/dashboard/NutrientProgressBar";
 import { WeeklyMacroTrend } from "@/components/dashboard/WeeklyMacroTrend";
 import { useNutrientStore } from "@/store/useNutrientStore";
+import type { NutrientValues } from "@/types/nutrition";
 
 const formatIsoDateLocal = (date: Date) => {
   const year = date.getFullYear();
@@ -62,10 +64,12 @@ export function DashboardPage() {
   const [hoveredTimelineDate, setHoveredTimelineDate] = useState<string | null>(null);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  const [selectedNutrientKey, setSelectedNutrientKey] = useState<keyof NutrientValues | null>(null);
 
   const calendarRef = useRef<HTMLDivElement | null>(null);
 
   const goals = useNutrientStore((state) => state.goals);
+  const allEntries = useNutrientStore((state) => state.entries);
   const dailyTotalsForDate = useNutrientStore((state) => state.dailyTotals);
   const weeklyTotalsForDate = useNutrientStore((state) => state.weeklyTotals);
   const weeklySeriesForDate = useNutrientStore((state) => state.weeklyMacroSeries);
@@ -88,15 +92,32 @@ export function DashboardPage() {
 
   const nutrientRows = useMemo(
     () => [
-      { name: "Calories", current: totals.calories, goal: goals.calories * goalMultiplier, unit: "kcal", targetType: "limit" as const },
-      { name: "Protein", current: totals.protein, goal: goals.protein * goalMultiplier, unit: "g", targetType: "goal" as const },
-      { name: "Carbs", current: totals.carbs, goal: goals.carbs * goalMultiplier, unit: "g", targetType: "goal" as const },
-      { name: "Fat", current: totals.fat, goal: goals.fat * goalMultiplier, unit: "g", targetType: "limit" as const },
-      { name: "Fiber", current: totals.fiber, goal: goals.fiber * goalMultiplier, unit: "g", targetType: "goal" as const },
-      { name: "Sugar", current: totals.sugar, goal: goals.sugar * goalMultiplier, unit: "g", targetType: "limit" as const }
+      { name: "Calories", nutrientKey: "calories" as keyof NutrientValues, current: totals.calories, goal: goals.calories * goalMultiplier, unit: "kcal", targetType: "limit" as const },
+      { name: "Protein", nutrientKey: "protein" as keyof NutrientValues, current: totals.protein, goal: goals.protein * goalMultiplier, unit: "g", targetType: "goal" as const },
+      { name: "Carbs", nutrientKey: "carbs" as keyof NutrientValues, current: totals.carbs, goal: goals.carbs * goalMultiplier, unit: "g", targetType: "goal" as const },
+      { name: "Fat", nutrientKey: "fat" as keyof NutrientValues, current: totals.fat, goal: goals.fat * goalMultiplier, unit: "g", targetType: "limit" as const },
+      { name: "Fiber", nutrientKey: "fiber" as keyof NutrientValues, current: totals.fiber, goal: goals.fiber * goalMultiplier, unit: "g", targetType: "goal" as const },
+      { name: "Sugar", nutrientKey: "sugar" as keyof NutrientValues, current: totals.sugar, goal: goals.sugar * goalMultiplier, unit: "g", targetType: "limit" as const }
     ],
     [goalMultiplier, goals, totals]
   );
+
+  const activeEntries = useMemo(() => {
+    if (viewMode === "daily") {
+      const day = parseIsoDateLocal(activeDailyDateIso).toDateString();
+      return allEntries.filter((entry) => new Date(entry.consumedAt).toDateString() === day);
+    }
+    const weekStart = parseIsoDateLocal(weekStartIso);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+    return allEntries.filter((entry) => {
+      const consumed = new Date(entry.consumedAt);
+      return consumed >= weekStart && consumed <= weekEnd;
+    });
+  }, [allEntries, viewMode, activeDailyDateIso, weekStartIso]);
+
+  const selectedNutrientRow = selectedNutrientKey ? nutrientRows.find((r) => r.nutrientKey === selectedNutrientKey) : null;
 
   const dailyLabel = useMemo(() => {
     const weekday = activeDailyDate.toLocaleDateString(undefined, { weekday: "short" });
@@ -284,18 +305,44 @@ export function DashboardPage() {
           <CalorieRingChart consumed={totals.calories} goal={goals.calories * goalMultiplier} />
         </Card>
 
-        <Card title="Nutrient Progress" className="fade-in-up space-y-4 lg:col-span-2">
-          {nutrientRows.map((nutrient) => (
-            <NutrientProgressBar
-              key={nutrient.name}
-              name={nutrient.name}
-              current={nutrient.current}
-              goal={nutrient.goal}
-              unit={nutrient.unit}
-              targetType={nutrient.targetType}
-            />
-          ))}
-        </Card>
+        <div className="fade-in-up flex gap-6 lg:col-span-2">
+          <Card title="Nutrient Progress" className="min-w-0 flex-1 space-y-1">
+            {nutrientRows.map((nutrient) => (
+              <NutrientProgressBar
+                key={nutrient.name}
+                name={nutrient.name}
+                current={nutrient.current}
+                goal={nutrient.goal}
+                unit={nutrient.unit}
+                targetType={nutrient.targetType}
+                onClick={() => setSelectedNutrientKey((k) => (k === nutrient.nutrientKey ? null : nutrient.nutrientKey))}
+                isSelected={selectedNutrientKey === nutrient.nutrientKey}
+              />
+            ))}
+          </Card>
+
+          {selectedNutrientRow ? (
+            <Card
+              title={`${selectedNutrientRow.name} Sources`}
+              actions={
+                <button
+                  onClick={() => setSelectedNutrientKey(null)}
+                  className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
+                  aria-label="Close breakdown"
+                >
+                  ✕
+                </button>
+              }
+              className="w-72 shrink-0"
+            >
+              <NutrientBreakdownPanel
+                nutrientKey={selectedNutrientRow.nutrientKey}
+                unit={selectedNutrientRow.unit}
+                entries={activeEntries}
+              />
+            </Card>
+          ) : null}
+        </div>
       </div>
 
       <Card title="Weekly Macro Trends (Monday–Sunday)" className="fade-in-up">

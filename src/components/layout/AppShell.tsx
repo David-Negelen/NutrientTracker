@@ -56,7 +56,7 @@ export function AppShell({ children }: AppShellProps) {
   }, [dark]);
 
   return (
-    <div className="mx-auto min-h-screen max-w-6xl px-4 pb-10 pt-6 sm:px-6 lg:px-8">
+    <div className="mx-auto min-h-screen max-w-[1400px] px-4 pb-10 pt-6 sm:px-6 lg:px-10">
       <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">

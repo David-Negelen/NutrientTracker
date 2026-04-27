@@ -4,6 +4,8 @@ interface NutrientProgressBarProps {
   goal: number;
   unit?: string;
   targetType?: "goal" | "limit";
+  onClick?: () => void;
+  isSelected?: boolean;
 }
 
 const statusColor = (ratio: number, targetType: "goal" | "limit") => {
@@ -17,13 +19,24 @@ const statusColor = (ratio: number, targetType: "goal" | "limit") => {
   return "bg-emerald-500";
 };
 
-export function NutrientProgressBar({ name, current, goal, unit = "g", targetType = "goal" }: NutrientProgressBarProps) {
+export function NutrientProgressBar({ name, current, goal, unit = "g", targetType = "goal", onClick, isSelected }: NutrientProgressBarProps) {
   const ratio = goal > 0 ? current / goal : 0;
   const fill = Math.min(ratio * 100, 100);
   const targetLabel = targetType === "limit" ? "limit" : "goal";
 
   return (
-    <div className="space-y-1 rounded-lg px-2 py-2">
+    <div
+      className={[
+        "space-y-1 rounded-lg px-2 py-2 transition-colors",
+        onClick ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50" : "",
+        isSelected ? "ring-2 ring-brand-500 bg-brand-50 dark:bg-brand-900/20" : "",
+      ].join(" ")}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-pressed={onClick ? isSelected : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") onClick(); } : undefined}
+    >
       <div className="flex items-baseline justify-between">
         <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{name}</p>
         <p className="text-xs text-slate-500 dark:text-slate-400">
