@@ -52,12 +52,7 @@ export async function searchUsdaFoods(query: string): Promise<FoodSearchResult[]
         carbs: nutrientValue(nutrients, ["Carbohydrate, by difference"]),
         fat: nutrientValue(nutrients, ["Total lipid (fat)"]),
         fiber: nutrientValue(nutrients, ["Fiber, total dietary"]),
-        sugar: nutrientValue(nutrients, ["Sugars, total including NLEA"]),
-        sodium: nutrientValue(nutrients, ["Sodium, Na"]),
-        vitaminA: nutrientValue(nutrients, ["Vitamin A, RAE"]),
-        vitaminC: nutrientValue(nutrients, ["Vitamin C, total ascorbic acid"]),
-        calcium: nutrientValue(nutrients, ["Calcium, Ca"]),
-        iron: nutrientValue(nutrients, ["Iron, Fe"])
+        sugar: nutrientValue(nutrients, ["Sugars, total including NLEA"])
       }
     };
 

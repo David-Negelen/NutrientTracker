@@ -11,8 +11,8 @@ export function Card({ title, actions, children, className = "" }: CardProps) {
   return (
     <section className={`card-surface p-5 ${className}`.trim()}>
       {(title || actions) && (
-        <header className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-semibold text-slate-800">{title}</h3>
+        <header className="mb-4 flex items-center justify-between gap-3">
+          <h3 className="text-base font-semibold text-slate-800 dark:text-slate-200">{title}</h3>
           {actions}
         </header>
       )}

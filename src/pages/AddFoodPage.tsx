@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Card } from "@/components/common/Card";
 import { BarcodeScannerPanel } from "@/components/add/BarcodeScannerPanel";
 import { FoodSearchPanel } from "@/components/add/FoodSearchPanel";
 import { CustomFoodForm } from "@/components/add/CustomFoodForm";
@@ -13,16 +12,20 @@ const tabs = [
   { id: "create", label: "Create" }
 ] as const;
 
+type QuickFilter = "recent" | "favorites" | "myfoods";
+
 export function AddFoodPage() {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["id"]>("add");
-  const [quickListFilter, setQuickListFilter] = useState<"recent" | "favorites">("recent");
+  const [quickListFilter, setQuickListFilter] = useState<QuickFilter>("recent");
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
   const [barcode, setBarcode] = useState("");
   const [mealType, setMealType] = useState<MealType>("lunch");
-  const [servings, setServings] = useState(1);
+  const [servingsStr, setServingsStr] = useState("1");
   const [addBanner, setAddBanner] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const { data: scannedFood, isFetching } = useBarcodeLookup(barcode);
+
+  const servingsNum = Math.max(0.25, parseFloat(servingsStr) || 1);
 
   const foods = useNutrientStore((state) => state.foods);
   const favorites = useNutrientStore((state) => state.favorites);
@@ -32,6 +35,7 @@ export function AddFoodPage() {
   const deleteFood = useNutrientStore((state) => state.deleteFood);
   const addLogEntry = useNutrientStore((state) => state.addLogEntry);
   const toggleFavorite = useNutrientStore((state) => state.toggleFavorite);
+  const touchRecent = useNutrientStore((state) => state.touchRecent);
   const clearRecent = useNutrientStore((state) => state.clearRecent);
 
   const addItemToLog = (food: FoodItem) => {
@@ -40,80 +44,111 @@ export function AddFoodPage() {
       id: `log-${Date.now()}`,
       foodItemId: food.id,
       foodName: food.name,
-      consumedAt: new Date(selectedDate).toISOString(),
-      servings,
+      consumedAt: new Date(selectedDate + "T12:00:00").toISOString(),
+      servings: servingsNum,
       mealType,
-      nutrients: scaleNutrients(food.nutrients, servings)
+      nutrients: scaleNutrients(food.nutrients, servingsNum)
     };
     addLogEntry(entry);
-    setAddBanner(`Added ${food.name} (${servings} serving${servings > 1 ? "s" : ""}) to ${mealType}.`);
+    setAddBanner(`Added ${food.name} (${servingsNum} serving${servingsNum !== 1 ? "s" : ""}) to ${mealType}.`);
     window.setTimeout(() => setAddBanner(null), 1800);
   };
 
   const customMeals = foods.filter(
-    (food) => food.source === "custom" && food.servingUnit === "g" && food.servingSize > 100
+    (food) => food.source === "custom" && food.mealComposition && food.mealComposition.length > 0
   );
-  const recentFoods = recent
-    .map((id) => foods.find((food) => food.id === id))
-    .filter(Boolean) as FoodItem[];
-  const favoriteFoods = favorites
-    .map((id) => foods.find((food) => food.id === id))
-    .filter(Boolean) as FoodItem[];
-  const quickFoods = quickListFilter === "recent" ? recentFoods : favoriteFoods;
+  const customFoods = foods.filter(
+    (food) => food.source === "custom" && (!food.mealComposition || food.mealComposition.length === 0)
+  );
+
+  const recentFoods = recent.map((id) => foods.find((food) => food.id === id)).filter(Boolean) as FoodItem[];
+  const favoriteFoods = favorites.map((id) => foods.find((food) => food.id === id)).filter(Boolean) as FoodItem[];
   const editingMeal = customMeals.find((meal) => meal.id === editingMealId) ?? null;
+
+  const quickFoods: FoodItem[] =
+    quickListFilter === "recent" ? recentFoods : quickListFilter === "favorites" ? favoriteFoods : customFoods;
+
+  const quickFilters: Array<{ id: QuickFilter; label: string; count?: number }> = [
+    { id: "recent", label: "Recent" },
+    { id: "favorites", label: "Favorites" },
+    { id: "myfoods", label: "My Foods", count: customFoods.length }
+  ];
+
+  const showBanner = (msg: string, ms = 1800) => {
+    setAddBanner(msg);
+    window.setTimeout(() => setAddBanner(null), ms);
+  };
+
+  const sectionClass =
+    "rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/60";
+  const innerSectionClass =
+    "rounded-xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60";
 
   let tabContent: JSX.Element;
   if (activeTab === "add") {
     tabContent = (
       <div className="space-y-3">
-        <section className="rounded-xl border border-slate-200 bg-white p-3">
-          <h3 className="mb-3 text-sm font-semibold text-slate-700">Quick Add</h3>
+        <section className={sectionClass}>
+          <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">Quick Add</h3>
           <div className="grid gap-3 lg:grid-cols-2">
-            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+            {/* Food library */}
+            <div className={innerSectionClass}>
               <div className="mb-3 flex items-center justify-between gap-2">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Food Library</h4>
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Food Library
+                </h4>
                 <div className="flex items-center gap-2">
                   {quickListFilter === "recent" ? (
                     <button
                       onClick={() => clearRecent()}
-                      className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                      className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
                     >
                       Clear
                     </button>
                   ) : null}
-                  <div className="rounded-full bg-white p-1 shadow-sm ring-1 ring-slate-200">
-                  <button
-                    onClick={() => setQuickListFilter("recent")}
-                    className={[
-                      "rounded-full px-3 py-1 text-xs font-semibold transition",
-                      quickListFilter === "recent" ? "bg-brand-600 text-white" : "text-slate-600 hover:bg-slate-100"
-                    ].join(" ")}
-                  >
-                    Recent
-                  </button>
-                  <button
-                    onClick={() => setQuickListFilter("favorites")}
-                    className={[
-                      "rounded-full px-3 py-1 text-xs font-semibold transition",
-                      quickListFilter === "favorites" ? "bg-rose-500 text-white" : "text-slate-600 hover:bg-slate-100"
-                    ].join(" ")}
-                  >
-                    Favorites
-                  </button>
+                  <div className="flex rounded-full bg-white p-1 shadow-sm ring-1 ring-slate-200 dark:bg-slate-700 dark:ring-slate-600">
+                    {quickFilters.map((f) => (
+                      <button
+                        key={f.id}
+                        onClick={() => setQuickListFilter(f.id)}
+                        className={[
+                          "rounded-full px-3 py-1 text-xs font-semibold transition",
+                          quickListFilter === f.id
+                            ? f.id === "favorites"
+                              ? "bg-rose-500 text-white"
+                              : f.id === "myfoods"
+                                ? "bg-emerald-600 text-white"
+                                : "bg-brand-600 text-white"
+                            : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-600"
+                        ].join(" ")}
+                      >
+                        {f.label}
+                        {f.count !== undefined && f.count > 0 ? (
+                          <span className="ml-1 opacity-80">({f.count})</span>
+                        ) : null}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
 
               {quickFoods.length === 0 ? (
-                <p className="text-sm text-slate-500">
-                  {quickListFilter === "recent" ? "No recent foods yet." : "No favorites yet."}
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  {quickListFilter === "recent"
+                    ? "No recent foods yet."
+                    : quickListFilter === "favorites"
+                      ? "No favorites yet."
+                      : "No custom foods yet. Create one in the Create tab."}
                 </p>
               ) : (
                 <div className="space-y-2">
                   {quickFoods.map((food) => {
                     const isFavorite = favorites.includes(food.id);
                     return (
-                      <div key={`${quickListFilter}-${food.id}`} className="rounded-lg bg-white p-2.5 shadow-sm ring-1 ring-slate-100">
+                      <div
+                        key={`${quickListFilter}-${food.id}`}
+                        className="rounded-lg bg-white p-2.5 shadow-sm ring-1 ring-slate-100 dark:bg-slate-700 dark:ring-slate-600"
+                      >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
@@ -121,7 +156,9 @@ export function AddFoodPage() {
                                 onClick={() => toggleFavorite(food.id)}
                                 className={[
                                   "inline-flex h-6 w-6 items-center justify-center rounded-full transition",
-                                  isFavorite ? "bg-rose-100 text-rose-600 hover:bg-rose-200" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                                  isFavorite
+                                    ? "bg-rose-100 text-rose-600 hover:bg-rose-200 dark:bg-rose-900/40 dark:text-rose-400"
+                                    : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-600 dark:text-slate-400 dark:hover:bg-slate-500"
                                 ].join(" ")}
                                 title={isFavorite ? "Remove from favorites" : "Add to favorites"}
                               >
@@ -135,13 +172,15 @@ export function AddFoodPage() {
                                   />
                                 </svg>
                               </button>
-                              <p className="truncate text-sm font-semibold text-slate-800">{food.name}</p>
+                              <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-200">{food.name}</p>
                             </div>
-                            <p className="mt-1 text-xs text-slate-500">{Math.round(food.nutrients.calories)} kcal</p>
+                            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                              {Math.round(food.nutrients.calories)} kcal · {food.servingSize}{food.servingUnit}
+                            </p>
                           </div>
                           <button
                             onClick={() => addItemToLog(food)}
-                            className="rounded-lg bg-brand-600 px-3 py-1 text-xs font-semibold text-white hover:bg-brand-700"
+                            className="shrink-0 rounded-lg bg-brand-600 px-3 py-1 text-xs font-semibold text-white hover:bg-brand-700"
                           >
                             Add
                           </button>
@@ -153,28 +192,36 @@ export function AddFoodPage() {
               )}
             </div>
 
-            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Custom Meals</h4>
+            {/* Custom Meals */}
+            <div className={innerSectionClass}>
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Custom Meals
+              </h4>
               {customMeals.length === 0 ? (
-                <p className="text-sm text-slate-500">No custom meals yet.</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  No custom meals yet. Compose one in the Create tab.
+                </p>
               ) : (
                 <div className="space-y-2">
                   {customMeals.map((meal) => (
-                    <div key={meal.id} className="rounded-lg bg-white p-2">
+                    <div
+                      key={meal.id}
+                      className="rounded-lg bg-white p-2 shadow-sm ring-1 ring-slate-100 dark:bg-slate-700 dark:ring-slate-600"
+                    >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-slate-800">{meal.name}</p>
-                          <p className="text-xs text-slate-500">
-                            {meal.servingSize}g • {Math.round(meal.nutrients.calories)} kcal
+                          <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">{meal.name}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            {meal.servingSize}g · {Math.round(meal.nutrients.calories)} kcal
                           </p>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex shrink-0 items-center gap-1">
                           <button
                             onClick={() => {
                               setEditingMealId(meal.id);
                               setActiveTab("create");
                             }}
-                            className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                            className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-600"
                           >
                             Edit
                           </button>
@@ -187,13 +234,10 @@ export function AddFoodPage() {
                           <button
                             onClick={() => {
                               deleteFood(meal.id);
-                              if (editingMealId === meal.id) {
-                                setEditingMealId(null);
-                              }
-                              setAddBanner(`Deleted meal ${meal.name}.`);
-                              window.setTimeout(() => setAddBanner(null), 1500);
+                              if (editingMealId === meal.id) setEditingMealId(null);
+                              showBanner(`Deleted meal ${meal.name}.`, 1500);
                             }}
-                            className="rounded bg-rose-100 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-200"
+                            className="rounded bg-rose-100 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-200 dark:bg-rose-900/40 dark:text-rose-400 dark:hover:bg-rose-900/60"
                           >
                             Delete
                           </button>
@@ -207,8 +251,8 @@ export function AddFoodPage() {
           </div>
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-3">
-          <h3 className="mb-3 text-sm font-semibold text-slate-700">Barcode Scan</h3>
+        <section className={sectionClass}>
+          <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">Barcode Scan</h3>
           <BarcodeScannerPanel
             onBarcodeDetected={setBarcode}
             scannedFood={scannedFood}
@@ -219,23 +263,22 @@ export function AddFoodPage() {
           />
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-3">
-          <h3 className="mb-3 text-sm font-semibold text-slate-700">Search</h3>
+        <section className={sectionClass}>
+          <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">Search</h3>
           <FoodSearchPanel
             onSelectFood={addItemToLog}
             favoriteIds={favorites}
             onToggleFavorite={toggleFavorite}
           />
         </section>
-
       </div>
     );
   } else {
     tabContent = (
       <div className="space-y-4">
-        <section className="rounded-xl border border-slate-200 bg-white p-3">
-          <h3 className="mb-3 text-sm font-semibold text-slate-700">
-            {editingMeal ? `Edit Meal Composition: ${editingMeal.name}` : "Create Meal Composition"}
+        <section className={sectionClass}>
+          <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">
+            {editingMeal ? `Edit Meal: ${editingMeal.name}` : "Create Meal Composition"}
           </h3>
           <MealCompositionForm
             editingMeal={editingMeal}
@@ -248,25 +291,23 @@ export function AddFoodPage() {
               if (editingMealId) {
                 updateFood(meal);
                 setEditingMealId(null);
-                setAddBanner(`Updated meal ${meal.name}.`);
-                window.setTimeout(() => setAddBanner(null), 1800);
+                showBanner(`Updated meal ${meal.name}.`);
                 return;
               }
-
               addFood(meal);
-              setAddBanner(`Saved meal ${meal.name}. Add it from the Add tab when ready.`);
-              window.setTimeout(() => setAddBanner(null), 2200);
+              showBanner(`Saved meal "${meal.name}". Add it from the Add tab when ready.`, 2200);
             }}
           />
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-3">
-          <h3 className="mb-3 text-sm font-semibold text-slate-700">Create Custom Food</h3>
+        <section className={sectionClass}>
+          <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">Create Custom Food</h3>
           <CustomFoodForm
             onCreateFood={(food) => {
               addFood(food);
-              setAddBanner(`Saved ${food.name}. Press Add when you want to log it.`);
-              window.setTimeout(() => setAddBanner(null), 2000);
+              touchRecent(food.id);
+              setQuickListFilter("myfoods");
+              showBanner(`Saved "${food.name}". Tap Add in the My Foods list to log it.`, 2200);
             }}
             favoriteIds={favorites}
             onToggleFavorite={toggleFavorite}
@@ -279,59 +320,77 @@ export function AddFoodPage() {
   return (
     <div className="space-y-4">
       {addBanner ? (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
           {addBanner}
         </div>
       ) : null}
-      <h2 className="text-xl font-bold text-slate-900">Add Food</h2>
-      <Card
-        title="Food Entry Hub"
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(event) => setSelectedDate(event.target.value)}
-              className="rounded-lg border border-slate-200 px-2 py-1 text-sm"
-            />
-            <select
-              value={mealType}
-              onChange={(event) => setMealType(event.target.value as MealType)}
-              className="rounded-lg border border-slate-200 px-2 py-1 text-sm"
-            >
-              <option value="breakfast">Breakfast</option>
-              <option value="lunch">Lunch</option>
-              <option value="dinner">Dinner</option>
-              <option value="snack">Snack</option>
-            </select>
-            <input
-              type="number"
-              step={0.25}
-              value={servings || ""}
-              onChange={(event) => setServings(event.target.value ? Number(event.target.value) : 0)}
-              className="w-24 rounded-lg border border-slate-200 px-2 py-1 text-sm"
-              title="Portion"
-              aria-label="Portion"
-            />
-          </div>
-        }
-      >
-        <div className="mb-4 flex flex-wrap gap-2">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={[
-                "rounded-full px-4 py-2 text-sm font-semibold",
-                tab.id === activeTab ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-600"
-              ].join(" ")}
-            >
-              {tab.label}
-            </button>
-          ))}
+
+      <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Add Food</h2>
+
+      {/* Logging context bar */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900/80">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Date</span>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(event) => setSelectedDate(event.target.value)}
+            className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm dark:border-slate-600"
+          />
         </div>
-        {tabContent}
-      </Card>
+        <div className="h-4 w-px bg-slate-200 dark:bg-slate-700" />
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Meal</span>
+          <select
+            value={mealType}
+            onChange={(event) => setMealType(event.target.value as MealType)}
+            className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm dark:border-slate-600"
+          >
+            <option value="breakfast">Breakfast</option>
+            <option value="lunch">Lunch</option>
+            <option value="dinner">Dinner</option>
+            <option value="snack">Snack</option>
+          </select>
+        </div>
+        <div className="h-4 w-px bg-slate-200 dark:bg-slate-700" />
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Qty</span>
+          <input
+            type="number"
+            step={0.25}
+            min={0.25}
+            value={servingsStr}
+            onChange={(event) => setServingsStr(event.target.value)}
+            onBlur={() => {
+              const n = parseFloat(servingsStr);
+              if (isNaN(n) || n <= 0) setServingsStr("1");
+            }}
+            className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm dark:border-slate-600"
+            aria-label="Servings"
+          />
+          <span className="text-xs text-slate-500 dark:text-slate-400">servings</span>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex flex-wrap gap-2">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={[
+              "rounded-full px-5 py-2 text-sm font-semibold",
+              tab.id === activeTab
+                ? "bg-brand-600 text-white"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+            ].join(" ")}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {tabContent}
     </div>
   );
 }

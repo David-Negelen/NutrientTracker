@@ -6,56 +6,57 @@ interface NutritionDetailsProps {
   servingUnit?: string;
 }
 
+interface NutrientRow {
+  label: string;
+  value: string;
+  note?: string;
+}
+
 export function NutritionDetails({ nutrients, servingSize, servingUnit }: NutritionDetailsProps) {
   const servingLabel = servingSize ? `per ${servingSize}${servingUnit || "g"}` : "per serving";
 
+  const rows: NutrientRow[] = [
+    { label: "Calories", value: `${Math.round(nutrients.calories)} kcal` },
+    { label: "Protein", value: `${nutrients.protein.toFixed(1)} g` },
+    { label: "Carbs", value: `${nutrients.carbs.toFixed(1)} g` },
+    { label: "Fat", value: `${nutrients.fat.toFixed(1)} g` },
+    { label: "Fiber", value: `${nutrients.fiber.toFixed(1)} g` },
+    {
+      label: "Sugar (total)",
+      value: `${nutrients.sugar.toFixed(1)} g`,
+      note:
+        nutrients.addedSugar !== undefined
+          ? `est. added: ${nutrients.addedSugar.toFixed(1)} g`
+          : undefined
+    },
+  ];
+
   return (
-    <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-3">
-      <div className="flex justify-between rounded bg-slate-50 px-2 py-1">
-        <span className="text-slate-600">Calories</span>
-        <span className="font-semibold text-slate-900">{Math.round(nutrients.calories)}</span>
+    <div className="grid grid-cols-2 gap-1.5 text-xs md:grid-cols-3">
+      {rows.map((row) => (
+        <div
+          key={row.label}
+          className="flex flex-col rounded-lg bg-slate-50 px-2.5 py-2 dark:bg-slate-800"
+        >
+          <div className="flex items-baseline justify-between gap-1">
+            <span className="text-slate-500 dark:text-slate-400">{row.label}</span>
+            <span className="font-semibold text-slate-900 dark:text-slate-100">{row.value}</span>
+          </div>
+          {row.note ? (
+            <span className="mt-0.5 text-right text-[10px] text-amber-600 dark:text-amber-400">
+              {row.note}
+            </span>
+          ) : null}
+        </div>
+      ))}
+      <div className="col-span-2 pt-1 text-center text-[10px] text-slate-400 dark:text-slate-500 md:col-span-3">
+        {servingLabel}
+        {nutrients.addedSugar !== undefined ? (
+          <span className="ml-2 text-amber-500 dark:text-amber-400">
+            · natural lactose subtracted from sugar
+          </span>
+        ) : null}
       </div>
-      <div className="flex justify-between rounded bg-slate-50 px-2 py-1">
-        <span className="text-slate-600">Protein</span>
-        <span className="font-semibold text-slate-900">{nutrients.protein.toFixed(1)}g</span>
-      </div>
-      <div className="flex justify-between rounded bg-slate-50 px-2 py-1">
-        <span className="text-slate-600">Carbs</span>
-        <span className="font-semibold text-slate-900">{nutrients.carbs.toFixed(1)}g</span>
-      </div>
-      <div className="flex justify-between rounded bg-slate-50 px-2 py-1">
-        <span className="text-slate-600">Fat</span>
-        <span className="font-semibold text-slate-900">{nutrients.fat.toFixed(1)}g</span>
-      </div>
-      <div className="flex justify-between rounded bg-slate-50 px-2 py-1">
-        <span className="text-slate-600">Fiber</span>
-        <span className="font-semibold text-slate-900">{nutrients.fiber.toFixed(1)}g</span>
-      </div>
-      <div className="flex justify-between rounded bg-slate-50 px-2 py-1">
-        <span className="text-slate-600">Sugar</span>
-        <span className="font-semibold text-slate-900">{nutrients.sugar.toFixed(1)}g</span>
-      </div>
-      <div className="flex justify-between rounded bg-slate-50 px-2 py-1">
-        <span className="text-slate-600">Sodium</span>
-        <span className="font-semibold text-slate-900">{nutrients.sodium.toFixed(0)}mg</span>
-      </div>
-      <div className="flex justify-between rounded bg-slate-50 px-2 py-1">
-        <span className="text-slate-600">Vitamin A</span>
-        <span className="font-semibold text-slate-900">{nutrients.vitaminA.toFixed(0)}µg</span>
-      </div>
-      <div className="flex justify-between rounded bg-slate-50 px-2 py-1">
-        <span className="text-slate-600">Vitamin C</span>
-        <span className="font-semibold text-slate-900">{nutrients.vitaminC.toFixed(1)}mg</span>
-      </div>
-      <div className="flex justify-between rounded bg-slate-50 px-2 py-1">
-        <span className="text-slate-600">Calcium</span>
-        <span className="font-semibold text-slate-900">{nutrients.calcium.toFixed(0)}mg</span>
-      </div>
-      <div className="flex justify-between rounded bg-slate-50 px-2 py-1">
-        <span className="text-slate-600">Iron</span>
-        <span className="font-semibold text-slate-900">{nutrients.iron.toFixed(2)}mg</span>
-      </div>
-      <div className="col-span-2 text-center text-xs text-slate-500 md:col-span-3">{servingLabel}</div>
     </div>
   );
 }

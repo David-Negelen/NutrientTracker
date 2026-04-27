@@ -33,32 +33,35 @@ function RecentAndFavoritesPicker({
   onToggleFavorite: (foodId: string) => void;
   onAdd: (food: FoodItem) => void;
 }) {
-  const recentFoods = recentFoodIds
-    .map((id) => foods.find((food) => food.id === id))
-    .filter(Boolean) as FoodItem[];
-  const favoriteFoods = favoriteIds
-    .map((id) => foods.find((food) => food.id === id))
-    .filter(Boolean) as FoodItem[];
+  const recentFoods = recentFoodIds.map((id) => foods.find((f) => f.id === id)).filter(Boolean) as FoodItem[];
+  const favoriteFoods = favoriteIds.map((id) => foods.find((f) => f.id === id)).filter(Boolean) as FoodItem[];
 
   const renderList = (title: string, list: FoodItem[]) => (
-    <section className="rounded-xl border border-slate-200 bg-white p-3">
-      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h4>
+    <section className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
+      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        {title}
+      </h4>
       {list.length === 0 ? (
-        <p className="text-sm text-slate-500">No items yet.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">No items yet.</p>
       ) : (
         <ul className="space-y-2">
           {list.map((food) => (
-            <li key={`${title}-${food.id}`} className="rounded-lg border border-slate-100 bg-slate-50 p-2">
+            <li
+              key={`${title}-${food.id}`}
+              className="rounded-lg border border-slate-100 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-700"
+            >
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-800">{food.name}</p>
-                  <p className="text-xs text-slate-500">{Math.round(food.nutrients.calories)} kcal</p>
+                  <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">{food.name}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {Math.round(food.nutrients.calories)} kcal
+                  </p>
                 </div>
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => onToggleFavorite(food.id)}
-                    className="rounded px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-200"
+                    className="rounded px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-600"
                   >
                     {favoriteIds.includes(food.id) ? "Saved" : "Save"}
                   </button>
@@ -86,6 +89,10 @@ function RecentAndFavoritesPicker({
   );
 }
 
+const requiredNutrientKeys: Array<keyof Omit<NutrientValues, "addedSugar">> = [
+  "calories", "protein", "carbs", "fat", "fiber", "sugar"
+];
+
 export function MealCompositionForm({
   onSaveMeal,
   editingMeal = null,
@@ -104,10 +111,7 @@ export function MealCompositionForm({
   const isEditing = Boolean(editingMeal);
 
   useEffect(() => {
-    if (!editingMeal) {
-      return;
-    }
-
+    if (!editingMeal) return;
     setMealName(editingMeal.name);
     setItems(
       (editingMeal.mealComposition ?? []).map((entry) => ({
@@ -121,13 +125,10 @@ export function MealCompositionForm({
   }, [editingMeal]);
 
   const addIngredient = (food: FoodItem, grams = 100) => {
-    const nextItem: CompositionItem = {
-      id: `ingredient-${Date.now()}-${Math.random()}`,
-      food,
-      grams: Math.max(1, grams)
-    };
-
-    setItems((current) => [...current, nextItem]);
+    setItems((current) => [
+      ...current,
+      { id: `ingredient-${Date.now()}-${Math.random()}`, food, grams: Math.max(1, grams) }
+    ]);
   };
 
   const updateGrams = (itemId: string, grams: number) => {
@@ -142,16 +143,13 @@ export function MealCompositionForm({
 
   const combinedNutrients = useMemo((): NutrientValues => {
     const combined = emptyNutrients();
-
     items.forEach((item) => {
       const factor = item.grams / item.food.servingSize;
       const scaled = scaleNutrients(item.food.nutrients, factor);
-
-      (Object.keys(combined) as Array<keyof NutrientValues>).forEach((key) => {
-        combined[key] += scaled[key];
+      requiredNutrientKeys.forEach((key) => {
+        combined[key] += scaled[key] ?? 0;
       });
     });
-
     return combined;
   }, [items]);
 
@@ -166,12 +164,10 @@ export function MealCompositionForm({
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
     if (!mealName.trim() || items.length === 0) {
       alert("Please enter a meal name and add at least one ingredient.");
       return;
     }
-
     const meal: FoodItem = {
       id: editingMeal?.id ?? `meal-${Date.now()}`,
       name: mealName.trim(),
@@ -179,35 +175,29 @@ export function MealCompositionForm({
       servingUnit: "g",
       source: "custom",
       nutrients: combinedNutrients,
-      mealComposition: items.map((item) => ({
-        food: item.food,
-        grams: item.grams
-      }))
+      mealComposition: items.map((item) => ({ food: item.food, grams: item.grams }))
     };
-
     onSaveMeal(meal);
-
     if (isEditing) {
       onCancelEdit?.();
       return;
     }
-
     resetForm();
   };
 
+  const sectionClass =
+    "rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800";
+
   return (
     <form onSubmit={submit} className="space-y-4">
-      <div className="rounded-xl border border-slate-200 bg-white p-3">
+      <div className={sectionClass}>
         <div className="mb-2 flex items-center justify-between gap-2">
-          <label className="block text-sm font-semibold text-slate-700">Meal name</label>
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">Meal name</label>
           {isEditing ? (
             <button
               type="button"
-              onClick={() => {
-                onCancelEdit?.();
-                resetForm();
-              }}
-              className="rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+              onClick={() => { onCancelEdit?.(); resetForm(); }}
+              className="rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
             >
               Cancel Edit
             </button>
@@ -217,57 +207,63 @@ export function MealCompositionForm({
           value={mealName}
           onChange={(event) => setMealName(event.target.value)}
           placeholder="e.g., Chicken Rice Bowl"
-          className="w-full rounded-lg border border-slate-200 px-3 py-2"
+          className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500"
           required
         />
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-3">
+      <div className={sectionClass}>
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className="text-sm font-semibold text-slate-700">Ingredients</h3>
-          <p className="text-xs text-slate-500">
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Ingredients</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             {items.length} item{items.length === 1 ? "" : "s"} · {totalGrams}g
           </p>
         </div>
 
         {isEditing && !editingMeal?.mealComposition?.length ? (
-          <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+          <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
             This older meal has no saved ingredient breakdown. Add ingredients below and save to rebuild it.
           </p>
         ) : null}
 
         {items.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3 text-sm text-slate-500">
+          <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-700/50 dark:text-slate-400">
             No ingredients yet.
           </p>
         ) : (
           <ul className="space-y-2">
             {items.map((item) => (
-              <li key={item.id} className="rounded-lg border border-slate-100 bg-slate-50 p-2">
+              <li
+                key={item.id}
+                className="rounded-lg border border-slate-100 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-700"
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-slate-800">{item.food.name}</p>
-                    <p className="text-xs text-slate-500">{Math.round(item.food.nutrients.calories)} kcal / serving</p>
+                    <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">{item.food.name}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {Math.round(item.food.nutrients.calories)} kcal / serving
+                    </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => removeIngredient(item.id)}
-                    className="rounded bg-red-100 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-200"
+                    className="rounded bg-red-100 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-400 dark:hover:bg-red-900/60"
                   >
                     Remove
                   </button>
                 </div>
-
                 <div className="mt-2 flex items-center gap-2">
-                  <span className="text-xs text-slate-500">Amount</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Amount</span>
                   <input
                     type="number"
                     min={1}
                     value={item.grams || ""}
-                    onChange={(event) => updateGrams(item.id, event.target.value ? Number(event.target.value) : 0)}
-                    className="w-24 rounded border border-slate-200 px-2 py-1 text-sm"
+                    onChange={(event) =>
+                      updateGrams(item.id, event.target.value ? Number(event.target.value) : 0)
+                    }
+                    className="w-24 rounded border border-slate-200 px-2 py-1.5 text-sm dark:border-slate-600"
                   />
-                  <span className="text-xs text-slate-500">g</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">g</span>
                 </div>
               </li>
             ))}
@@ -284,7 +280,7 @@ export function MealCompositionForm({
       </div>
 
       {showPicker ? (
-        <div className="space-y-3 rounded-xl border border-brand-100 bg-brand-50 p-3">
+        <div className="space-y-3 rounded-xl border border-brand-100 bg-brand-50 p-3 dark:border-brand-900 dark:bg-brand-900/10">
           <RecentAndFavoritesPicker
             foods={foods}
             recentFoodIds={recentFoodIds}
@@ -292,9 +288,10 @@ export function MealCompositionForm({
             onToggleFavorite={onToggleFavorite}
             onAdd={(food) => addIngredient(food)}
           />
-
-          <section className="rounded-xl border border-slate-200 bg-white p-3">
-            <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Add From Barcode</h4>
+          <section className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
+            <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Add From Barcode
+            </h4>
             <BarcodeScannerPanel
               onBarcodeDetected={setBarcode}
               scannedFood={scannedFood}
@@ -308,15 +305,15 @@ export function MealCompositionForm({
       ) : null}
 
       {items.length > 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-3">
-          <h3 className="mb-2 text-sm font-semibold text-slate-700">Meal Nutrition Preview</h3>
+        <div className={sectionClass}>
+          <h3 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">Meal Nutrition Preview</h3>
           <NutritionDetails nutrients={combinedNutrients} servingSize={totalGrams} servingUnit="g" />
         </div>
       ) : null}
 
       <button
         type="submit"
-        className="w-full rounded-xl bg-brand-600 px-4 py-2 font-semibold text-white hover:bg-brand-700"
+        className="w-full rounded-xl bg-brand-600 px-4 py-2.5 font-semibold text-white hover:bg-brand-700"
       >
         {isEditing ? "Save Meal Changes" : "Save Meal Composition"}
       </button>

@@ -1,10 +1,45 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import { defaultGoals, emptyNutrients, FoodItem, LogEntry, NutrientGoals, NutrientValues, UserProfile } from "@/types/nutrition";
+import { createJSONStorage, persist } from "zustand/middleware";
+import { createStore as createIDBStore, del as idbDel, get as idbGet, set as idbSet } from "idb-keyval";
+import {
+  DEFAULT_WATER_GOAL_ML,
+  defaultGoals,
+  emptyNutrients,
+  FoodItem,
+  LogEntry,
+  NutrientGoals,
+  NutrientValues,
+  UserProfile,
+  WaterEntry
+} from "@/types/nutrition";
+
+const idbCustomStore = createIDBStore("nutrient-tracker-db", "kv");
+
+const idbStorageAdapter = {
+  getItem: async (name: string): Promise<string | null> => {
+    const val = await idbGet<string>(name, idbCustomStore);
+    if (val !== undefined) return val ?? null;
+    // One-time migration from localStorage
+    const lsVal = localStorage.getItem(name);
+    if (lsVal !== null) {
+      await idbSet(name, lsVal, idbCustomStore);
+      localStorage.removeItem(name);
+      return lsVal;
+    }
+    return null;
+  },
+  setItem: async (name: string, value: string): Promise<void> => {
+    await idbSet(name, value, idbCustomStore);
+  },
+  removeItem: async (name: string): Promise<void> => {
+    await idbDel(name, idbCustomStore);
+  }
+};
 
 interface NutrientState {
   foods: FoodItem[];
   entries: LogEntry[];
+  waterEntries: WaterEntry[];
   favorites: string[];
   recentFoodIds: string[];
   goals: NutrientGoals;
@@ -16,12 +51,17 @@ interface NutrientState {
   updateLogEntry: (entryId: string, updates: Partial<Pick<LogEntry, "servings" | "mealType" | "consumedAt" | "nutrients">>) => void;
   removeLogEntry: (entryId: string) => void;
   toggleFavorite: (foodId: string) => void;
+  touchRecent: (foodId: string) => void;
   clearRecent: () => void;
   updateGoals: (goals: Partial<NutrientGoals>) => void;
   updateProfile: (profile: Partial<UserProfile>) => void;
+  addWater: (dateIso: string, amount: number) => void;
+  removeWater: (id: string) => void;
+  copyDay: (fromDateIso: string, toDateIso: string) => number;
   dailyTotals: (dateIso?: string) => NutrientValues;
   weeklyTotals: (dateIso?: string) => NutrientValues;
   weeklyMacroSeries: (dateIso?: string) => Array<{ day: string; dateIso: string; protein: number; carbs: number; fat: number }>;
+  dailyWater: (dateIso?: string) => number;
 }
 
 const sumNutrients = (acc: NutrientValues, next: NutrientValues): NutrientValues => ({
@@ -31,11 +71,10 @@ const sumNutrients = (acc: NutrientValues, next: NutrientValues): NutrientValues
   fat: acc.fat + next.fat,
   fiber: acc.fiber + next.fiber,
   sugar: acc.sugar + next.sugar,
-  sodium: acc.sodium + next.sodium,
-  vitaminA: acc.vitaminA + next.vitaminA,
-  vitaminC: acc.vitaminC + next.vitaminC,
-  calcium: acc.calcium + next.calcium,
-  iron: acc.iron + next.iron
+  addedSugar:
+    acc.addedSugar !== undefined || next.addedSugar !== undefined
+      ? (acc.addedSugar ?? acc.sugar) + (next.addedSugar ?? next.sugar)
+      : undefined
 });
 
 const parseIsoDateLocal = (dateIso: string) => {
@@ -64,59 +103,98 @@ export const useNutrientStore = create<NutrientState>()(
     (set, get) => ({
       foods: [],
       entries: [],
+      waterEntries: [],
       favorites: [],
       recentFoodIds: [],
       goals: defaultGoals,
-      profile: { activityLevel: "moderate" },
+      profile: { activityLevel: "moderate", waterGoalMl: DEFAULT_WATER_GOAL_ML },
+
       addFood: (food) =>
-        set((state) => {
-          const exists = state.foods.some((item) => item.id === food.id);
-          return {
-            foods: exists ? state.foods : [food, ...state.foods]
-          };
-        }),
+        set((state) => ({
+          foods: state.foods.some((item) => item.id === food.id) ? state.foods : [food, ...state.foods]
+        })),
+
       updateFood: (food) =>
         set((state) => ({
           foods: state.foods.map((item) => (item.id === food.id ? food : item))
         })),
+
       deleteFood: (foodId) =>
         set((state) => ({
           foods: state.foods.filter((item) => item.id !== foodId),
           favorites: state.favorites.filter((id) => id !== foodId),
           recentFoodIds: state.recentFoodIds.filter((id) => id !== foodId)
         })),
+
       addLogEntry: (entry) =>
         set((state) => ({
           entries: [entry, ...state.entries],
-          recentFoodIds: [entry.foodItemId, ...state.recentFoodIds.filter((id) => id !== entry.foodItemId)].slice(0, 8)
+          recentFoodIds: [entry.foodItemId, ...state.recentFoodIds.filter((id) => id !== entry.foodItemId)].slice(0, 12)
         })),
+
       updateLogEntry: (entryId, updates) =>
         set((state) => ({
-          entries: state.entries.map((entry) =>
-            entry.id === entryId
-              ? {
-                  ...entry,
-                  ...updates
-                }
-              : entry
-          )
+          entries: state.entries.map((entry) => (entry.id === entryId ? { ...entry, ...updates } : entry))
         })),
+
       removeLogEntry: (entryId) =>
         set((state) => ({
           entries: state.entries.filter((entry) => entry.id !== entryId)
         })),
+
       toggleFavorite: (foodId) =>
         set((state) => ({
           favorites: state.favorites.includes(foodId)
             ? state.favorites.filter((id) => id !== foodId)
             : [...state.favorites, foodId]
         })),
-      clearRecent: () =>
-        set(() => ({
-          recentFoodIds: []
+
+      touchRecent: (foodId) =>
+        set((state) => ({
+          recentFoodIds: [foodId, ...state.recentFoodIds.filter((id) => id !== foodId)].slice(0, 12)
         })),
+
+      clearRecent: () => set(() => ({ recentFoodIds: [] })),
+
       updateGoals: (goals) => set((state) => ({ goals: { ...state.goals, ...goals } })),
+
       updateProfile: (profile) => set((state) => ({ profile: { ...state.profile, ...profile } })),
+
+      addWater: (dateIso, amount) =>
+        set((state) => ({
+          waterEntries: [
+            {
+              id: `water-${Date.now()}`,
+              dateIso,
+              amount,
+              loggedAt: new Date().toISOString()
+            },
+            ...state.waterEntries
+          ]
+        })),
+
+      removeWater: (id) =>
+        set((state) => ({
+          waterEntries: state.waterEntries.filter((entry) => entry.id !== id)
+        })),
+
+      copyDay: (fromDateIso, toDateIso) => {
+        const fromDate = parseIsoDateLocal(fromDateIso);
+        const [ty, tm, td] = toDateIso.split("-").map(Number);
+        const fromEntries = get().entries.filter(
+          (entry) => new Date(entry.consumedAt).toDateString() === fromDate.toDateString()
+        );
+        if (fromEntries.length === 0) return 0;
+        const now = Date.now();
+        const newEntries = fromEntries.map((entry, i) => {
+          const orig = new Date(entry.consumedAt);
+          const target = new Date(ty, tm - 1, td, orig.getHours(), orig.getMinutes(), 0, 0);
+          return { ...entry, id: `log-${now + i}`, consumedAt: target.toISOString() };
+        });
+        set((state) => ({ entries: [...newEntries, ...state.entries] }));
+        return fromEntries.length;
+      },
+
       dailyTotals: (dateIso) => {
         const targetDate = dateIso ? parseIsoDateLocal(dateIso) : new Date();
         const day = targetDate.toDateString();
@@ -124,13 +202,13 @@ export const useNutrientStore = create<NutrientState>()(
           .entries.filter((entry) => new Date(entry.consumedAt).toDateString() === day)
           .reduce((acc, entry) => sumNutrients(acc, entry.nutrients), emptyNutrients());
       },
+
       weeklyTotals: (dateIso) => {
         const anchor = dateIso ? parseIsoDateLocal(dateIso) : new Date();
         const weekStart = startOfWeekMonday(anchor);
         const weekEnd = new Date(weekStart);
         weekEnd.setDate(weekStart.getDate() + 6);
         weekEnd.setHours(23, 59, 59, 999);
-
         return get()
           .entries.filter((entry) => {
             const consumed = new Date(entry.consumedAt);
@@ -138,49 +216,53 @@ export const useNutrientStore = create<NutrientState>()(
           })
           .reduce((acc, entry) => sumNutrients(acc, entry.nutrients), emptyNutrients());
       },
+
       weeklyMacroSeries: (dateIso) => {
         const anchor = dateIso ? parseIsoDateLocal(dateIso) : new Date();
         const weekStart = startOfWeekMonday(anchor);
-        const days = Array.from({ length: 7 }, (_, index) => {
+        return Array.from({ length: 7 }, (_, index) => {
           const date = new Date(weekStart);
           date.setDate(weekStart.getDate() + index);
-          return date;
-        });
-
-        return days.map((date) => {
           const dayLabel = date.toLocaleDateString(undefined, { weekday: "short" });
           const totals = get()
             .entries.filter((entry) => new Date(entry.consumedAt).toDateString() === date.toDateString())
             .reduce((acc, entry) => sumNutrients(acc, entry.nutrients), emptyNutrients());
-
-          return {
-            day: dayLabel,
-            dateIso: formatIsoDateLocal(date),
-            protein: totals.protein,
-            carbs: totals.carbs,
-            fat: totals.fat
-          };
+          return { day: dayLabel, dateIso: formatIsoDateLocal(date), protein: totals.protein, carbs: totals.carbs, fat: totals.fat };
         });
+      },
+
+      dailyWater: (dateIso) => {
+        const target = dateIso ?? formatIsoDateLocal(new Date());
+        return get()
+          .waterEntries.filter((entry) => entry.dateIso === target)
+          .reduce((sum, entry) => sum + entry.amount, 0);
       }
     }),
     {
       name: "nutrient-tracker-store",
-      version: 2,
-      migrate: (persistedState: any) => {
-        const state = persistedState ?? {};
-        return {
-          ...state,
+      version: 3,
+      storage: createJSONStorage(() => idbStorageAdapter),
+      migrate: (persistedState: unknown, version: number) => {
+        const state = (persistedState as Record<string, unknown>) ?? {};
+        const base = {
           foods: Array.isArray(state.foods) ? state.foods : [],
           entries: Array.isArray(state.entries) ? state.entries : [],
+          waterEntries: Array.isArray(state.waterEntries) ? state.waterEntries : [],
           favorites: Array.isArray(state.favorites) ? state.favorites : [],
           recentFoodIds: Array.isArray(state.recentFoodIds) ? state.recentFoodIds : [],
-          goals: state.goals ?? defaultGoals,
-          profile: state.profile ?? { activityLevel: "moderate" }
+          goals: (state.goals as NutrientGoals) ?? defaultGoals,
+          profile: (state.profile as UserProfile) ?? { activityLevel: "moderate", waterGoalMl: DEFAULT_WATER_GOAL_ML }
         };
+        if (version < 3) {
+          base.waterEntries = [];
+          if (!base.profile.waterGoalMl) base.profile.waterGoalMl = DEFAULT_WATER_GOAL_ML;
+        }
+        return base;
       },
       partialize: (state) => ({
         foods: state.foods,
         entries: state.entries,
+        waterEntries: state.waterEntries,
         favorites: state.favorites,
         recentFoodIds: state.recentFoodIds,
         goals: state.goals,

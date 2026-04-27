@@ -35,8 +35,8 @@ export function CalorieRingChart({ consumed, goal }: CalorieRingChartProps) {
       </ResponsiveContainer>
       <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
         <div>
-          <p className="text-3xl font-bold text-slate-900">{Math.round(consumed)}</p>
-          <p className="text-sm text-slate-500">of {goal} kcal</p>
+          <p className="text-3xl font-bold text-slate-900 dark:text-slate-100">{Math.round(consumed)}</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">of {goal} kcal</p>
         </div>
       </div>
     </div>

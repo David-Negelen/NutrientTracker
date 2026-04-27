@@ -20,6 +20,14 @@ body {
     #f8fafc;
 }
 
+.dark body {
+  background:
+    radial-gradient(circle at 8% 10%, rgba(17, 168, 111, 0.07), transparent 35%),
+    radial-gradient(circle at 92% 20%, rgba(15, 68, 51, 0.05), transparent 40%),
+    #080d17;
+  color: #e2e8f0;
+}
+
 #root {
   min-height: 100vh;
 }
@@ -39,15 +47,19 @@ body {
   animation: fadeInUp 320ms ease-out both;
 }
 
-/* Global custom scrollbar styling */
+/* ── Scrollbars ─────────────────────────────────────────── */
 * {
   scrollbar-width: thin;
   scrollbar-color: #94a3b8 #e2e8f0;
 }
 
+.dark * {
+  scrollbar-color: #334155 #1e293b;
+}
+
 *::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 
 *::-webkit-scrollbar-track {
@@ -55,23 +67,69 @@ body {
   border-radius: 9999px;
 }
 
+.dark *::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
 *::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #94a3b8 0%, #64748b 100%);
+  background: #94a3b8;
   border: 2px solid #e2e8f0;
   border-radius: 9999px;
 }
 
-*::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #64748b 0%, #475569 100%);
+.dark *::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-color: #1e293b;
 }
 
+/* ── Card surface ───────────────────────────────────────── */
 .card-surface {
-  @apply rounded-2xl bg-white/90 shadow-card backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg;
+  @apply rounded-2xl bg-white/90 shadow-card backdrop-blur transition-colors duration-200;
 }
 
+.dark .card-surface {
+  background-color: rgb(15 23 42 / 0.97);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgb(30 41 59);
+}
+
+/* ── Form controls (inputs, selects) ────────────────────── */
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.dark select,
+.dark textarea {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+  color-scheme: dark;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b;
+}
+
+/* Number spinners — always visible, not just on hover */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
+  height: auto;
+}
+
+/* Ensure number inputs have comfortable click area */
+input[type="number"] {
+  min-height: 2.25rem;
+}
+
+/* ── Transitions ────────────────────────────────────────── */
 button,
 input,
-select {
-  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease, box-shadow 200ms ease,
-    transform 200ms ease, opacity 200ms ease;
+select,
+textarea {
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease,
+    opacity 150ms ease;
 }

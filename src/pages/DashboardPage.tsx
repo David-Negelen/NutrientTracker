@@ -117,9 +117,7 @@ export function DashboardPage() {
   const centerLabel = viewMode === "daily" ? dailyLabel : weeklyLabel;
 
   const shouldShowToday = useMemo(() => {
-    if (viewMode === "daily") {
-      return selectedDateIso !== todayIso;
-    }
+    if (viewMode === "daily") return selectedDateIso !== todayIso;
     return !isSameWeek(selectedDate, today);
   }, [selectedDate, selectedDateIso, today, todayIso, viewMode]);
 
@@ -144,17 +142,12 @@ export function DashboardPage() {
   };
 
   useEffect(() => {
-    if (!isCalendarOpen) {
-      return;
-    }
-
+    if (!isCalendarOpen) return;
     const onMouseDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (!calendarRef.current?.contains(target)) {
+      if (!calendarRef.current?.contains(event.target as Node)) {
         setIsCalendarOpen(false);
       }
     };
-
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
   }, [isCalendarOpen]);
@@ -163,72 +156,66 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="fade-in-up flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-bold text-slate-900">Nutrient Overview</h2>
+      <div className="fade-in-up relative z-10 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Nutrient Overview</h2>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div
-            className="relative inline-flex items-center rounded-full bg-white p-1"
-            style={{ border: "0.5px solid rgb(226 232 240)" }}
-            ref={calendarRef}
-          >
-            <button
-              onClick={() => navigateByMode(-1)}
-              className="rounded-full px-3 py-1.5 text-base font-semibold text-slate-700 hover:bg-slate-100"
-              aria-label={viewMode === "daily" ? "Previous day" : "Previous week"}
-            >
-              ‹
-            </button>
+          {/* Date navigator + calendar */}
+          <div className="relative" ref={calendarRef}>
+            <div className="inline-flex items-center rounded-full bg-white p-1 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
+              <button
+                onClick={() => navigateByMode(-1)}
+                className="rounded-full px-3 py-1.5 text-base font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+                aria-label={viewMode === "daily" ? "Previous day" : "Previous week"}
+              >
+                ‹
+              </button>
 
-            <button
-              onClick={() => {
-                setCalendarMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
-                setIsCalendarOpen((open) => !open);
-              }}
-              className="rounded-full px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-100"
-              aria-label="Open calendar"
-            >
-              {centerLabel}
-            </button>
+              <button
+                onClick={() => {
+                  setCalendarMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
+                  setIsCalendarOpen((open) => !open);
+                }}
+                className="rounded-full px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                aria-label="Open calendar"
+              >
+                {centerLabel}
+              </button>
 
-            <button
-              onClick={() => navigateByMode(1)}
-              className="rounded-full px-3 py-1.5 text-base font-semibold text-slate-700 hover:bg-slate-100"
-              aria-label={viewMode === "daily" ? "Next day" : "Next week"}
-            >
-              ›
-            </button>
+              <button
+                onClick={() => navigateByMode(1)}
+                className="rounded-full px-3 py-1.5 text-base font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+                aria-label={viewMode === "daily" ? "Next day" : "Next week"}
+              >
+                ›
+              </button>
+            </div>
 
             {isCalendarOpen ? (
-              <div
-                className="absolute right-0 top-12 z-20 w-72 rounded-2xl bg-white p-3 shadow-lg"
-                style={{ border: "0.5px solid rgb(226 232 240)" }}
-              >
+              <div className="absolute right-0 top-12 z-50 w-72 rounded-2xl bg-white p-3 shadow-xl ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
                 <div className="mb-2 flex items-center justify-between">
                   <button
                     onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}
-                    className="rounded px-2 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                    className="rounded px-2 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
                     aria-label="Previous month"
                   >
                     ‹
                   </button>
-                  <p className="text-sm font-semibold text-slate-800">
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                     {calendarMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
                   </p>
                   <button
                     onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}
-                    className="rounded px-2 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                    className="rounded px-2 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
                     aria-label="Next month"
                   >
                     ›
                   </button>
                 </div>
 
-                <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-slate-500">
+                <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-slate-500 dark:text-slate-400">
                   {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((day) => (
-                    <div key={day} className="py-1">
-                      {day}
-                    </div>
+                    <div key={day} className="py-1">{day}</div>
                   ))}
                 </div>
 
@@ -237,7 +224,6 @@ export function DashboardPage() {
                     const isCurrentMonth = date.getMonth() === calendarMonth.getMonth();
                     const isSelected = isSameDay(date, selectedDate);
                     const isToday = isSameDay(date, today);
-
                     return (
                       <button
                         key={date.toISOString()}
@@ -247,10 +233,10 @@ export function DashboardPage() {
                           isSelected
                             ? "bg-brand-600 text-white"
                             : isToday
-                              ? "bg-emerald-100 text-emerald-700"
+                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
                               : isCurrentMonth
-                                ? "text-slate-700 hover:bg-slate-100"
-                                : "text-slate-400 hover:bg-slate-50"
+                                ? "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+                                : "text-slate-400 hover:bg-slate-50 dark:text-slate-600 dark:hover:bg-slate-700/50"
                         ].join(" ")}
                       >
                         {date.getDate()}
@@ -265,29 +251,25 @@ export function DashboardPage() {
           {shouldShowToday ? (
             <button
               onClick={jumpToToday}
-              className="rounded-full bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-              style={{ border: "0.5px solid rgb(226 232 240)" }}
+              className="rounded-full bg-white px-3 py-2 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-700"
             >
               Today
             </button>
           ) : null}
 
-          <div
-            className="inline-flex items-center rounded-full bg-white p-1"
-            style={{ border: "0.5px solid rgb(226 232 240)" }}
-          >
+          <div className="inline-flex items-center rounded-full bg-white p-1 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
             {(["daily", "weekly"] as const).map((mode) => (
               <button
                 key={mode}
                 onClick={() => {
                   setViewMode(mode);
-                  if (mode === "weekly") {
-                    setHoveredTimelineDate(null);
-                  }
+                  if (mode === "weekly") setHoveredTimelineDate(null);
                 }}
                 className={[
                   "rounded-full px-4 py-2 text-sm font-semibold",
-                  viewMode === mode ? "bg-brand-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                  viewMode === mode
+                    ? "bg-brand-600 text-white"
+                    : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
                 ].join(" ")}
               >
                 {mode[0].toUpperCase() + mode.slice(1)}
@@ -316,7 +298,7 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      <Card title="Weekly Macro Trends (Monday-Sunday)" className="fade-in-up">
+      <Card title="Weekly Macro Trends (Monday–Sunday)" className="fade-in-up">
         <WeeklyMacroTrend
           data={weeklySeries}
           onHoverDate={viewMode === "daily" ? setHoveredTimelineDate : undefined}

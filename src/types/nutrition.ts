@@ -7,11 +7,8 @@ export interface NutrientValues {
   fat: number;
   fiber: number;
   sugar: number;
-  sodium: number;
-  vitaminA: number;
-  vitaminC: number;
-  calcium: number;
-  iron: number;
+  /** Estimated added sugar (total sugar minus estimated natural lactose). Set for detected dairy products. */
+  addedSugar?: number;
 }
 
 export interface FoodItem {
@@ -41,6 +38,13 @@ export interface LogEntry {
   nutrients: NutrientValues;
 }
 
+export interface WaterEntry {
+  id: string;
+  dateIso: string;
+  amount: number;
+  loggedAt: string;
+}
+
 export interface NutrientGoals {
   calories: number;
   protein: number;
@@ -48,11 +52,6 @@ export interface NutrientGoals {
   fat: number;
   fiber: number;
   sugar: number;
-  sodium: number;
-  vitaminA: number;
-  vitaminC: number;
-  calcium: number;
-  iron: number;
 }
 
 export interface UserProfile {
@@ -60,6 +59,7 @@ export interface UserProfile {
   weightKg?: number;
   heightCm?: number;
   activityLevel?: "low" | "moderate" | "high";
+  waterGoalMl?: number;
 }
 
 export const emptyNutrients = (): NutrientValues => ({
@@ -68,12 +68,7 @@ export const emptyNutrients = (): NutrientValues => ({
   carbs: 0,
   fat: 0,
   fiber: 0,
-  sugar: 0,
-  sodium: 0,
-  vitaminA: 0,
-  vitaminC: 0,
-  calcium: 0,
-  iron: 0
+  sugar: 0
 });
 
 export const scaleNutrients = (nutrients: NutrientValues, factor: number): NutrientValues => ({
@@ -83,11 +78,7 @@ export const scaleNutrients = (nutrients: NutrientValues, factor: number): Nutri
   fat: nutrients.fat * factor,
   fiber: nutrients.fiber * factor,
   sugar: nutrients.sugar * factor,
-  sodium: nutrients.sodium * factor,
-  vitaminA: nutrients.vitaminA * factor,
-  vitaminC: nutrients.vitaminC * factor,
-  calcium: nutrients.calcium * factor,
-  iron: nutrients.iron * factor
+  addedSugar: nutrients.addedSugar !== undefined ? nutrients.addedSugar * factor : undefined
 });
 
 export const defaultGoals: NutrientGoals = {
@@ -96,10 +87,7 @@ export const defaultGoals: NutrientGoals = {
   carbs: 250,
   fat: 70,
   fiber: 30,
-  sugar: 40,
-  sodium: 2300,
-  vitaminA: 900,
-  vitaminC: 90,
-  calcium: 1000,
-  iron: 18
+  sugar: 40
 };
+
+export const DEFAULT_WATER_GOAL_ML = 2000;
