@@ -36,6 +36,8 @@ function estimateLactoseG(name: string, brand?: string): number | null {
   if (/\b(kefir)\b/.test(text)) return 3.5;
   if (/\b(buttermilch|buttermilk)\b/.test(text)) return 4.5;
   if (/\b(sahne|schlagsahne|cream|crème fraîche|creme fraiche|soured cream|sour cream|schmand|crema)\b/.test(text)) return 3.5;
+  // Milk-based protein drinks / shakes (whey or casein based) — lactose ~4 g/100 ml
+  if (/\b(protein shake|protein drink|high protein|eiweißdrink|eiweißshake|protein milk)\b/.test(text)) return 4.0;
   if (/\b(milch|milk|latte|leche)\b/.test(text)) return 4.7;
 
   return null;

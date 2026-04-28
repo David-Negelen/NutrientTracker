@@ -240,7 +240,7 @@ export const useNutrientStore = create<NutrientState>()(
     }),
     {
       name: "nutrient-tracker-store",
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => idbStorageAdapter),
       migrate: (persistedState: unknown, version: number) => {
         const state = (persistedState as Record<string, unknown>) ?? {};
@@ -256,6 +256,28 @@ export const useNutrientStore = create<NutrientState>()(
         if (version < 3) {
           base.waterEntries = [];
           if (!base.profile.waterGoalMl) base.profile.waterGoalMl = DEFAULT_WATER_GOAL_ML;
+        }
+        if (version < 4) {
+          // Backfill addedSugar for milk-based protein drinks that were missed by previous lactose estimation
+          const dairyProteinPattern = /\b(protein shake|protein drink|high protein|eiweißdrink|eiweißshake|protein milk)\b/i;
+          const updatedFoods = (base.foods as FoodItem[]).map((food) => {
+            if (food.nutrients.addedSugar !== undefined) return food;
+            if (dairyProteinPattern.test(`${food.name} ${food.brand ?? ""}`)) {
+              const estimatedLactose = 4.0;
+              return { ...food, nutrients: { ...food.nutrients, addedSugar: Math.max(0, food.nutrients.sugar - estimatedLactose) } };
+            }
+            return food;
+          });
+          const foodMap = new Map<string, FoodItem>(updatedFoods.map((f) => [f.id, f]));
+          const updatedEntries = (base.entries as LogEntry[]).map((entry) => {
+            if (entry.nutrients.addedSugar !== undefined) return entry;
+            const food = foodMap.get(entry.foodItemId);
+            if (!food || food.nutrients.addedSugar === undefined) return entry;
+            const fraction = food.nutrients.sugar > 0 ? food.nutrients.addedSugar / food.nutrients.sugar : 0;
+            return { ...entry, nutrients: { ...entry.nutrients, addedSugar: entry.nutrients.sugar * fraction } };
+          });
+          base.foods = updatedFoods;
+          base.entries = updatedEntries;
         }
         return base;
       },

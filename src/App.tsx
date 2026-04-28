@@ -2,9 +2,8 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { LogPage } from "@/pages/LogPage";
-import { AddFoodPage } from "@/pages/AddFoodPage";
+import { LibraryPage } from "@/pages/LibraryPage";
 import { GoalsPage } from "@/pages/GoalsPage";
-import { FoodsPage } from "@/pages/FoodsPage";
 
 function App() {
   return (
@@ -13,8 +12,9 @@ function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/log" element={<LogPage />} />
-        <Route path="/add" element={<AddFoodPage />} />
-        <Route path="/foods" element={<FoodsPage />} />
+        <Route path="/library" element={<LibraryPage />} />
+        <Route path="/add" element={<Navigate to="/library" replace />} />
+        <Route path="/foods" element={<Navigate to="/library" replace />} />
         <Route path="/goals" element={<GoalsPage />} />
       </Routes>
     </AppShell>

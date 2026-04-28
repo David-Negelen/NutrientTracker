@@ -8,8 +8,7 @@ interface AppShellProps {
 const navItems = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/log", label: "Log" },
-  { to: "/add", label: "Add Food" },
-  { to: "/foods", label: "Library" },
+  { to: "/library", label: "Library" },
   { to: "/goals", label: "Goals" }
 ];
 

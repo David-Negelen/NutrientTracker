@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Card } from "@/components/common/Card";
 import { CalorieRingChart } from "@/components/dashboard/CalorieRingChart";
 import { NutrientBreakdownPanel } from "@/components/dashboard/NutrientBreakdownPanel";
 import { NutrientProgressBar } from "@/components/dashboard/NutrientProgressBar";
+import { WaterTracker } from "@/components/dashboard/WaterTracker";
 import { WeeklyMacroTrend } from "@/components/dashboard/WeeklyMacroTrend";
 import { useNutrientStore } from "@/store/useNutrientStore";
 import type { NutrientValues } from "@/types/nutrition";
@@ -67,6 +68,14 @@ export function DashboardPage() {
   const [selectedNutrientKey, setSelectedNutrientKey] = useState<keyof NutrientValues | null>(null);
 
   const calendarRef = useRef<HTMLDivElement | null>(null);
+  const progressRef = useRef<HTMLDivElement>(null);
+  const [panelMaxHeight, setPanelMaxHeight] = useState<number>(0);
+
+  useLayoutEffect(() => {
+    if (!selectedNutrientKey && progressRef.current) {
+      setPanelMaxHeight(progressRef.current.offsetHeight);
+    }
+  }, [selectedNutrientKey]);
 
   const goals = useNutrientStore((state) => state.goals);
   const allEntries = useNutrientStore((state) => state.entries);
@@ -97,7 +106,7 @@ export function DashboardPage() {
       { name: "Carbs", nutrientKey: "carbs" as keyof NutrientValues, current: totals.carbs, goal: goals.carbs * goalMultiplier, unit: "g", targetType: "goal" as const },
       { name: "Fat", nutrientKey: "fat" as keyof NutrientValues, current: totals.fat, goal: goals.fat * goalMultiplier, unit: "g", targetType: "limit" as const },
       { name: "Fiber", nutrientKey: "fiber" as keyof NutrientValues, current: totals.fiber, goal: goals.fiber * goalMultiplier, unit: "g", targetType: "goal" as const },
-      { name: "Sugar", nutrientKey: "sugar" as keyof NutrientValues, current: totals.sugar, goal: goals.sugar * goalMultiplier, unit: "g", targetType: "limit" as const }
+      { name: "Sugar", nutrientKey: "sugar" as keyof NutrientValues, current: totals.addedSugar ?? totals.sugar, goal: goals.sugar * goalMultiplier, unit: "g", targetType: "limit" as const }
     ],
     [goalMultiplier, goals, totals]
   );
@@ -306,20 +315,22 @@ export function DashboardPage() {
         </Card>
 
         <div className="fade-in-up flex gap-6 lg:col-span-2">
-          <Card title="Nutrient Progress" className="min-w-0 flex-1 space-y-1">
-            {nutrientRows.map((nutrient) => (
-              <NutrientProgressBar
-                key={nutrient.name}
-                name={nutrient.name}
-                current={nutrient.current}
-                goal={nutrient.goal}
-                unit={nutrient.unit}
-                targetType={nutrient.targetType}
-                onClick={() => setSelectedNutrientKey((k) => (k === nutrient.nutrientKey ? null : nutrient.nutrientKey))}
-                isSelected={selectedNutrientKey === nutrient.nutrientKey}
-              />
-            ))}
-          </Card>
+          <div ref={progressRef} className="min-w-0 flex-1">
+            <Card title="Nutrient Progress" className="space-y-1">
+              {nutrientRows.map((nutrient) => (
+                <NutrientProgressBar
+                  key={nutrient.name}
+                  name={nutrient.name}
+                  current={nutrient.current}
+                  goal={nutrient.goal}
+                  unit={nutrient.unit}
+                  targetType={nutrient.targetType}
+                  onClick={() => setSelectedNutrientKey((k) => (k === nutrient.nutrientKey ? null : nutrient.nutrientKey))}
+                  isSelected={selectedNutrientKey === nutrient.nutrientKey}
+                />
+              ))}
+            </Card>
+          </div>
 
           {selectedNutrientRow ? (
             <Card
@@ -333,13 +344,16 @@ export function DashboardPage() {
                   ✕
                 </button>
               }
-              className="w-72 shrink-0"
+              className="w-72 shrink-0 flex flex-col"
+              style={{ maxHeight: panelMaxHeight || undefined }}
             >
-              <NutrientBreakdownPanel
-                nutrientKey={selectedNutrientRow.nutrientKey}
-                unit={selectedNutrientRow.unit}
-                entries={activeEntries}
-              />
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <NutrientBreakdownPanel
+                  nutrientKey={selectedNutrientRow.nutrientKey}
+                  unit={selectedNutrientRow.unit}
+                  entries={activeEntries}
+                />
+              </div>
             </Card>
           ) : null}
         </div>
@@ -358,6 +372,10 @@ export function DashboardPage() {
               : undefined
           }
         />
+      </Card>
+
+      <Card title="Water Intake" className="fade-in-up">
+        <WaterTracker dateIso={activeDailyDateIso} />
       </Card>
     </div>
   );
