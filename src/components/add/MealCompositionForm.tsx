@@ -3,6 +3,7 @@ import { BarcodeScannerPanel } from "@/components/add/BarcodeScannerPanel";
 import { NutritionDetails } from "@/components/common/NutritionDetails";
 import { useBarcodeLookup } from "@/hooks/useFoodQueries";
 import { FoodItem, NutrientValues, emptyNutrients, scaleNutrients } from "@/types/nutrition";
+import { estimateLactoseG } from "@/utils/dairy";
 
 interface MealCompositionFormProps {
   onSaveMeal: (meal: FoodItem) => void;
@@ -143,14 +144,35 @@ export function MealCompositionForm({
 
   const combinedNutrients = useMemo((): NutrientValues => {
     const combined = emptyNutrients();
+    // Include items where addedSugar is set OR where the name identifies a dairy product.
+    const anyHasAddedSugar = items.some(
+      (item) => item.food.nutrients.addedSugar !== undefined || estimateLactoseG(item.food.name, item.food.brand) !== null
+    );
+    let totalAddedSugar = 0;
+
     items.forEach((item) => {
       const factor = item.grams / item.food.servingSize;
       const scaled = scaleNutrients(item.food.nutrients, factor);
       requiredNutrientKeys.forEach((key) => {
         combined[key] += scaled[key] ?? 0;
       });
+      if (anyHasAddedSugar) {
+        if (scaled.addedSugar !== undefined) {
+          totalAddedSugar += scaled.addedSugar;
+        } else {
+          const lactose = estimateLactoseG(item.food.name, item.food.brand);
+          if (lactose !== null) {
+            // lactose is per 100 g; convert to per-serving then scale to the amount eaten
+            const lactosePerServing = lactose * (item.food.servingSize / 100);
+            totalAddedSugar += Math.max(0, item.food.nutrients.sugar - lactosePerServing) * factor;
+          } else {
+            totalAddedSugar += scaled.sugar;
+          }
+        }
+      }
     });
-    return combined;
+
+    return anyHasAddedSugar ? { ...combined, addedSugar: totalAddedSugar } : combined;
   }, [items]);
 
   const totalGrams = items.reduce((sum, item) => sum + item.grams, 0);

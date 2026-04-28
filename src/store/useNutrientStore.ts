@@ -12,6 +12,7 @@ import {
   UserProfile,
   WaterEntry
 } from "@/types/nutrition";
+import { estimateLactoseG } from "@/utils/dairy";
 
 const idbCustomStore = createIDBStore("nutrient-tracker-db", "kv");
 
@@ -240,7 +241,7 @@ export const useNutrientStore = create<NutrientState>()(
     }),
     {
       name: "nutrient-tracker-store",
-      version: 4,
+      version: 6,
       storage: createJSONStorage(() => idbStorageAdapter),
       migrate: (persistedState: unknown, version: number) => {
         const state = (persistedState as Record<string, unknown>) ?? {};
@@ -258,26 +259,115 @@ export const useNutrientStore = create<NutrientState>()(
           if (!base.profile.waterGoalMl) base.profile.waterGoalMl = DEFAULT_WATER_GOAL_ML;
         }
         if (version < 4) {
-          // Backfill addedSugar for milk-based protein drinks that were missed by previous lactose estimation
+          // Backfill addedSugar for milk-based protein drinks missed by old lactose estimation
           const dairyProteinPattern = /\b(protein shake|protein drink|high protein|eiweißdrink|eiweißshake|protein milk)\b/i;
-          const updatedFoods = (base.foods as FoodItem[]).map((food) => {
+          base.foods = (base.foods as FoodItem[]).map((food) => {
             if (food.nutrients.addedSugar !== undefined) return food;
             if (dairyProteinPattern.test(`${food.name} ${food.brand ?? ""}`)) {
-              const estimatedLactose = 4.0;
-              return { ...food, nutrients: { ...food.nutrients, addedSugar: Math.max(0, food.nutrients.sugar - estimatedLactose) } };
+              return { ...food, nutrients: { ...food.nutrients, addedSugar: Math.max(0, food.nutrients.sugar - 4.0) } };
             }
             return food;
           });
-          const foodMap = new Map<string, FoodItem>(updatedFoods.map((f) => [f.id, f]));
-          const updatedEntries = (base.entries as LogEntry[]).map((entry) => {
+        }
+        if (version < 5) {
+          // Build a map of top-level foods (already patched by v4 if needed) for ingredient sync
+          const freshFoodMap = new Map<string, FoodItem>((base.foods as FoodItem[]).map((f) => [f.id, f]));
+
+          // Fix composed meals:
+          // 1. Sync addedSugar into ingredient copies that are stale snapshots without it
+          // 2. Recompute the meal's own addedSugar from the (now-updated) ingredients
+          // This also runs for meals that were on v4 already and never got the composed-meal fix.
+          base.foods = (base.foods as FoodItem[]).map((food) => {
+            if (!food.mealComposition?.length) return food;
+
+            // Update each ingredient copy from the top-level food map when the copy is missing addedSugar
+            const syncedComposition = food.mealComposition.map((item: { food: FoodItem; grams: number }) => {
+              if (item.food.nutrients.addedSugar !== undefined) return item;
+              const fresh = freshFoodMap.get(item.food.id);
+              if (!fresh || fresh.nutrients.addedSugar === undefined) return item;
+              return { ...item, food: { ...item.food, nutrients: { ...item.food.nutrients, addedSugar: fresh.nutrients.addedSugar } } };
+            });
+
+            const anyHasAddedSugar = syncedComposition.some(
+              (item: { food: FoodItem; grams: number }) => item.food.nutrients.addedSugar !== undefined
+            );
+            if (!anyHasAddedSugar) return { ...food, mealComposition: syncedComposition };
+
+            let totalAddedSugar = 0;
+            syncedComposition.forEach((item: { food: FoodItem; grams: number }) => {
+              const factor = item.grams / item.food.servingSize;
+              totalAddedSugar += (item.food.nutrients.addedSugar ?? item.food.nutrients.sugar) * factor;
+            });
+            return { ...food, mealComposition: syncedComposition, nutrients: { ...food.nutrients, addedSugar: totalAddedSugar } };
+          });
+
+          // Propagate addedSugar to log entries (re-runs safely; skips already-fixed entries)
+          const fixedFoodMap = new Map<string, FoodItem>((base.foods as FoodItem[]).map((f: FoodItem) => [f.id, f]));
+          base.entries = (base.entries as LogEntry[]).map((entry) => {
             if (entry.nutrients.addedSugar !== undefined) return entry;
-            const food = foodMap.get(entry.foodItemId);
+            const food = fixedFoodMap.get(entry.foodItemId);
             if (!food || food.nutrients.addedSugar === undefined) return entry;
             const fraction = food.nutrients.sugar > 0 ? food.nutrients.addedSugar / food.nutrients.sugar : 0;
             return { ...entry, nutrients: { ...entry.nutrients, addedSugar: entry.nutrients.sugar * fraction } };
           });
-          base.foods = updatedFoods;
-          base.entries = updatedEntries;
+        }
+        if (version < 6) {
+          // Apply full estimateLactoseG to ALL top-level foods still missing addedSugar.
+          // v4 only caught protein drinks; v5 only synced ingredient copies via ID lookup.
+          // This pass catches everything (quark, yogurt, milk, cream, kefir, etc.).
+          base.foods = (base.foods as FoodItem[]).map((food) => {
+            if (food.nutrients.addedSugar !== undefined) return food;
+            const lactose = estimateLactoseG(food.name, food.brand);
+            if (lactose === null) return food;
+            const lactosePerServing = lactose * (food.servingSize / 100);
+            return { ...food, nutrients: { ...food.nutrients, addedSugar: Math.max(0, food.nutrients.sugar - lactosePerServing) } };
+          });
+
+          const v6FoodMap = new Map<string, FoodItem>((base.foods as FoodItem[]).map((f: FoodItem) => [f.id, f]));
+
+          // Sync ingredient copies in composed meals:
+          // 1. Skip copies that already have addedSugar
+          // 2. Try ID-based lookup against the freshly-patched top-level foods
+          // 3. Fall back to name-based lactose estimation directly on the copy
+          base.foods = (base.foods as FoodItem[]).map((food) => {
+            if (!food.mealComposition?.length) return food;
+
+            const syncedComposition = food.mealComposition.map((item: { food: FoodItem; grams: number }) => {
+              if (item.food.nutrients.addedSugar !== undefined) return item;
+
+              const fresh = v6FoodMap.get(item.food.id);
+              if (fresh?.nutrients.addedSugar !== undefined) {
+                return { ...item, food: { ...item.food, nutrients: { ...item.food.nutrients, addedSugar: fresh.nutrients.addedSugar } } };
+              }
+
+              const lactose = estimateLactoseG(item.food.name, item.food.brand);
+              if (lactose === null) return item;
+              const lactosePerServing = lactose * (item.food.servingSize / 100);
+              return { ...item, food: { ...item.food, nutrients: { ...item.food.nutrients, addedSugar: Math.max(0, item.food.nutrients.sugar - lactosePerServing) } } };
+            });
+
+            const anyHasAddedSugar = syncedComposition.some(
+              (item: { food: FoodItem; grams: number }) => item.food.nutrients.addedSugar !== undefined
+            );
+            if (!anyHasAddedSugar) return { ...food, mealComposition: syncedComposition };
+
+            let totalAddedSugar = 0;
+            syncedComposition.forEach((item: { food: FoodItem; grams: number }) => {
+              const factor = item.grams / item.food.servingSize;
+              totalAddedSugar += (item.food.nutrients.addedSugar ?? item.food.nutrients.sugar) * factor;
+            });
+            return { ...food, mealComposition: syncedComposition, nutrients: { ...food.nutrients, addedSugar: totalAddedSugar } };
+          });
+
+          // Backfill log entries (safe to re-run; skips already-fixed entries)
+          const v6FixedFoodMap = new Map<string, FoodItem>((base.foods as FoodItem[]).map((f: FoodItem) => [f.id, f]));
+          base.entries = (base.entries as LogEntry[]).map((entry) => {
+            if (entry.nutrients.addedSugar !== undefined) return entry;
+            const food = v6FixedFoodMap.get(entry.foodItemId);
+            if (!food || food.nutrients.addedSugar === undefined) return entry;
+            const fraction = food.nutrients.sugar > 0 ? food.nutrients.addedSugar / food.nutrients.sugar : 0;
+            return { ...entry, nutrients: { ...entry.nutrients, addedSugar: entry.nutrients.sugar * fraction } };
+          });
         }
         return base;
       },
