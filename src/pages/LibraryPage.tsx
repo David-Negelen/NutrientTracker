@@ -3,13 +3,14 @@ import { BarcodeScannerPanel } from "@/components/add/BarcodeScannerPanel";
 import { CustomFoodForm } from "@/components/add/CustomFoodForm";
 import { FoodSearchPanel } from "@/components/add/FoodSearchPanel";
 import { MealCompositionForm } from "@/components/add/MealCompositionForm";
+import { QuickMealPanel } from "@/components/add/QuickMealPanel";
 import { useBarcodeLookup } from "@/hooks/useFoodQueries";
 import { useNutrientStore } from "@/store/useNutrientStore";
 import { FoodItem, LogEntry, MealType, scaleNutrients } from "@/types/nutrition";
 
 type FilterTab = "recent" | "favorites" | "myfoods" | "meals" | "all";
 type SortKey = "name" | "calories" | "protein";
-type ActivePanel = "search" | "scan" | "custom" | "meal" | null;
+type ActivePanel = "search" | "scan" | "custom" | "meal" | "quick" | null;
 
 const todayIso = () => {
   const d = new Date();
@@ -119,6 +120,7 @@ const actionButtons: Array<{ id: NonNullable<ActivePanel>; label: string }> = [
   { id: "scan", label: "Scan Barcode" },
   { id: "custom", label: "Custom Food" },
   { id: "meal", label: "New Meal" },
+  { id: "quick", label: "Quick Meal" },
 ];
 
 export function LibraryPage() {
@@ -333,6 +335,15 @@ export function LibraryPage() {
                   setActivePanel(null);
                   showBanner(`Saved meal "${meal.name}". Find it in Meals to add it to the log.`, 2500);
                 }
+              }}
+            />
+          )}
+          {activePanel === "quick" && (
+            <QuickMealPanel
+              onSaveMeal={(meal) => {
+                addFood(meal);
+                setActivePanel(null);
+                showBanner(`Saved meal "${meal.name}". Find it in Meals to add it to the log.`, 2500);
               }}
             />
           )}

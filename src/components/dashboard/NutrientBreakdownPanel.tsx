@@ -7,8 +7,13 @@ interface NutrientBreakdownPanelProps {
 }
 
 export function NutrientBreakdownPanel({ nutrientKey, unit, entries }: NutrientBreakdownPanelProps) {
+  const getValue = (entry: LogEntry) =>
+    nutrientKey === "sugar"
+      ? (entry.nutrients.addedSugar ?? entry.nutrients.sugar)
+      : ((entry.nutrients[nutrientKey] ?? 0) as number);
+
   const items = entries
-    .map((entry) => ({ name: entry.foodName, amount: (entry.nutrients[nutrientKey] ?? 0) as number }))
+    .map((entry) => ({ name: entry.foodName, amount: getValue(entry) }))
     .filter((item) => item.amount > 0)
     .sort((a, b) => b.amount - a.amount);
 

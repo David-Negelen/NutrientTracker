@@ -3,6 +3,7 @@ import { Card } from "@/components/common/Card";
 import { CalorieRingChart } from "@/components/dashboard/CalorieRingChart";
 import { NutrientBreakdownPanel } from "@/components/dashboard/NutrientBreakdownPanel";
 import { NutrientProgressBar } from "@/components/dashboard/NutrientProgressBar";
+import { TipsPanel } from "@/components/dashboard/TipsPanel";
 import { WaterTracker } from "@/components/dashboard/WaterTracker";
 import { WeeklyMacroTrend } from "@/components/dashboard/WeeklyMacroTrend";
 import { useNutrientStore } from "@/store/useNutrientStore";
@@ -377,6 +378,17 @@ export function DashboardPage() {
       <Card title="Water Intake" className="fade-in-up">
         <WaterTracker dateIso={activeDailyDateIso} />
       </Card>
+
+      {viewMode === "daily" ? (
+        <Card title="Improvement Tips" className="fade-in-up">
+          <TipsPanel
+            totals={dailyTotals}
+            goals={goals}
+            entries={activeEntries}
+            dateIso={activeDailyDateIso}
+          />
+        </Card>
+      ) : null}
     </div>
   );
 }

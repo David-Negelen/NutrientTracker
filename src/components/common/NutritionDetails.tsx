@@ -22,12 +22,11 @@ export function NutritionDetails({ nutrients, servingSize, servingUnit }: Nutrit
     { label: "Fat", value: `${nutrients.fat.toFixed(1)} g` },
     { label: "Fiber", value: `${nutrients.fiber.toFixed(1)} g` },
     {
-      label: "Sugar (total)",
-      value: `${nutrients.sugar.toFixed(1)} g`,
-      note:
-        nutrients.addedSugar !== undefined
-          ? `est. added: ${nutrients.addedSugar.toFixed(1)} g`
-          : undefined
+      label: nutrients.addedSugar !== undefined ? "Added Sugar" : "Sugar",
+      value: `${(nutrients.addedSugar ?? nutrients.sugar).toFixed(1)} g`,
+      note: nutrients.addedSugar !== undefined
+        ? `total: ${nutrients.sugar.toFixed(1)} g`
+        : undefined,
     },
   ];
 
@@ -51,11 +50,6 @@ export function NutritionDetails({ nutrients, servingSize, servingUnit }: Nutrit
       ))}
       <div className="col-span-2 pt-1 text-center text-[10px] text-slate-400 dark:text-slate-500 md:col-span-3">
         {servingLabel}
-        {nutrients.addedSugar !== undefined ? (
-          <span className="ml-2 text-amber-500 dark:text-amber-400">
-            · natural lactose subtracted from sugar
-          </span>
-        ) : null}
       </div>
     </div>
   );
